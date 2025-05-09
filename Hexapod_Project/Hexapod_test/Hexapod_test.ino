@@ -16,8 +16,8 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 #define SERVO_MIN  150 // Pulse length for 0 degrees
 #define SERVO_MAX  600 // Pulse length for 180 degrees
 
-const float link_1 = 90; // Length of first link in cm
-const float link_2 = 82; // Length of second link in cm
+const float link_1 = 70; // Length of first link in mm
+const float link_2 = 135; // Length of second link in mm
 
 
 int x = 100;  // x axis value
@@ -34,10 +34,12 @@ int  theta1_deg, theta2_deg, theta3_deg;  // theta 1 & 2 & 3 in degrees
 int theta1, theta2, theta3; // theta 1 & 2 & 3 which will be in PMW
 
 
-int z_start = -50;
-int z_end = 50;
-int y_ground = -100;
-int h = 50;
+// Preset positions for walking 
+int z_start = -50;     // Start position for Z
+int z_end = 50;        // End position for Z
+int y_ground = -130;   // Define how far the end-point can go down
+int h = 40;            // Define how far the end-point will go up
+
 
 
 // IK function declaration and implementation
@@ -52,12 +54,13 @@ void IK(int x,int y, int z) {
   //calculation for hypotenuse
   c = sqrt(L * L + y * y);
   
-  // calculations for theta 2 and theta 3
+  // calculations for theta 2
   theta2_rad = acos( ( (link_1 * link_1)  + (c * c) - (link_2 * link_2) ) / (2 * link_1 * c) ) + atan2(y, L);
   
+  // calculations for theta 3
   theta3_rad = acos( ( (link_1 * link_1) + (link_2 * link_2) - (c * c) ) / (2 * link_1 * link_2) );
 
-  // Converting theta 1 & 2 to degrees from rads
+  // Converting theta 1 & 2 & 3 to degrees from rads
   theta1_deg = theta1_rad * (180/M_PI);
 
   theta2_deg = theta2_rad * (180/M_PI);
@@ -78,6 +81,7 @@ void setup() {
     for(;;); // Loop forever if failed
   }
 
+  // Clear the display
   display.clearDisplay();
 
   // Start the pwm function
@@ -85,7 +89,7 @@ void setup() {
   pwm.setPWMFreq(50);  // Standard servo frequency: 50 Hz
   delay(10); // 10ms delay
 
-    
+  // Rotating all servos to 90 degrees
   pwm.setPWM(0, 0, 375);
   delay(1000);
   pwm.setPWM(1, 0, 375);
@@ -96,44 +100,51 @@ void setup() {
 
 void loop() {
 
+  // for loop calculating 20 values for Z and Y axis
   for (float t = 0; t <= 1.0; t += 0.05){
-
+    
+    // first calculating Z value
     z = ( 1 - t ) * z_start + ( t * z_end );
 
+    // then calculationg Y value
     y = y_ground + ( h * sin(M_PI * t) );
 
-
-    IK(x, y, z); // call the function IK
+    // passing the values to the IK function
+    IK(x, y, z);
 
     // map theta 1 & 2 & 3 from degrees to pwm
     theta1 = map(theta1_deg, 0, 180, SERVO_MIN, SERVO_MAX);
     theta2 = map(theta2_deg, 0, 180, SERVO_MIN, SERVO_MAX);
-    theta3 = map(180 - theta3_deg, 0, 180, SERVO_MIN, SERVO_MAX);
+    theta3 = map(180 - theta3_deg, 0, 180, SERVO_MIN, SERVO_MAX); // subtracting 180 from the theta 3 angle
 
     // Clear the display first
     display.clearDisplay();
 
-    if ( c < 160 ){
+    // if hypotenuse is in range then pass the values to the mototrs
+    if ( c < (link_1 + link_2) ){
       
-
+      // passing PMW to the motors
       pwm.setPWM(0, 0, theta1);
-      delay(25);
+      delay(25);                // 25ms delay
       pwm.setPWM(1, 0, theta2);
       delay(25);
       pwm.setPWM(2, 0, theta3);
       delay(25);
 
 
-      // Show the position
+      // display the position
       display.setTextSize(1.5);
       display.setTextColor(SSD1306_WHITE);
       display.setCursor(0, 2);
-      display.print(F("X:"));
+      display.print(F("X:")); // display X positions
       display.print(x);
-      display.print(F(" Y:"));
+      display.print(F(" Y:")); // display Y positions
       display.print(y);
-      display.print(F(" Z:"));
+      display.print(F(" Z:")); // display Z positions
       display.print(z);
+      display.setCursor(0, 20);
+      display.print(F("C:")); // display C positions
+      display.print(c);
 
     }
     else{
