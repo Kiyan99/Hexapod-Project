@@ -7,8 +7,8 @@ Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
 #define SERVO_MIN 150
 #define SERVO_MAX 600
 
-const float link_1 = 90;
-const float link_2 = 70;
+const float link_1 = 70;
+const float link_2 = 137;
 
 int x = 0;
 int y = 0;
@@ -43,12 +43,45 @@ void setup() {
   pwm.setPWMFreq(50);
   delay(10);
 
-  pwm.setPWM(0, 0, 375); // Center positions
-  pwm.setPWM(1, 0, 375);
-  pwm.setPWM(2, 0, 375);
+
 }
 
 void loop() {
+
+  //   // Leg 1 set to 90 degrees
+  // pwm.setPWM(0, 0, 375);
+  // delay(50);
+  // pwm.setPWM(1, 0, 150);
+  // delay(50);
+  // pwm.setPWM(2, 0, 375);
+  // delay(50);
+
+
+  pwm.setPWM(3, 0, 375);
+  delay(50);
+  pwm.setPWM(4, 0, 150);
+  delay(50);
+  pwm.setPWM(5, 0, 375);
+  delay(50);
+
+
+  pwm.setPWM(6, 0, 375);
+  delay(50);
+  pwm.setPWM(7, 0, 150);
+  delay(50);
+  pwm.setPWM(8, 0, 375);
+  delay(50);
+
+
+  pwm.setPWM(9, 0, 375);
+  delay(50);
+  pwm.setPWM(10, 0, 150);
+  delay(50);
+  pwm.setPWM(11, 0, 375);
+  delay(50);
+
+
+
   if (Serial.available()) {
     Serial.println("Enter coordinates (X Y Z separated by spaces):");
 
@@ -86,11 +119,11 @@ void loop() {
 
     if (c < (link_1 + link_2) && c > abs(link_1 - link_2)) {
       pwm.setPWM(0, 0, theta1);
-      delay(200);
+      delay(50);
       pwm.setPWM(1, 0, theta2);
-      delay(200);
+      delay(50);
       pwm.setPWM(2, 0, theta3);
-      delay(200);
+      delay(50);
     } else {
       Serial.println("Point out of reach. Moving to center.");
       pwm.setPWM(0, 0, 375);
