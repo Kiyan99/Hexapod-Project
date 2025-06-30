@@ -18,35 +18,35 @@ void loop() {
 
   // Leg 1 set to 90 degrees
   pwm.setPWM(0, 0, 375);
-  delay(50);
-  pwm.setPWM(1, 0, 150);
-  delay(50);
-  pwm.setPWM(2, 0, 375);
-  delay(50);
+  delay(1000);
+  pwm.setPWM(1, 0, 375);
+  delay(1000);
+  // pwm.setPWM(0, 0, 600);
+  // delay(1000);
 
 
-  pwm.setPWM(3, 0, 375);
-  delay(50);
-  pwm.setPWM(4, 0, 150);
-  delay(50);
-  pwm.setPWM(5, 0, 375);
-  delay(50);
+  // pwm.setPWM(1, 0, 150);
+  // delay(1000);
+  // pwm.setPWM(1, 0, 375);
+  // delay(1000);
+  // pwm.setPWM(1, 0, 600);
+  // delay(1000);
 
 
-  pwm.setPWM(6, 0, 375);
-  delay(50);
-  pwm.setPWM(7, 0, 150);
-  delay(50);
-  pwm.setPWM(8, 0, 375);
-  delay(50);
+  // pwm.setPWM(6, 0, 375);
+  // delay(50);
+  // pwm.setPWM(7, 0, 375);
+  // delay(50);
+  // pwm.setPWM(8, 0, 375);
+  // delay(50);
 
 
-  pwm.setPWM(9, 0, 375);
-  delay(50);
-  pwm.setPWM(10, 0, 150);
-  delay(50);
-  pwm.setPWM(11, 0, 375);
-  delay(50);
+  // pwm.setPWM(9, 0, 375);
+  // delay(50);
+  // pwm.setPWM(10, 0, 375);
+  // delay(50);
+  // pwm.setPWM(11, 0, 375);
+  // delay(50);
 
 
 }
