@@ -27,12 +27,12 @@ struct Leg {
 };
 
 // Define four legs and assign their PWM channels
-Leg leg1 = {0, 1, 2, &pwm1};  // front left
-Leg leg2 = {3, 4, 5, &pwm1}; // right middle
-Leg leg3 = {6, 7, 8, &pwm1}; // rear left
-Leg leg4 = {9, 10, 11, &pwm1}; // front right
-Leg leg5 = {12, 13, 14, &pwm1}; // left middle
-Leg leg6 = {0, 1, 2, &pwm2}; // rear right
+Leg leg1 = {12, 13, 14, &pwm2};  // front left
+Leg leg2 = {4, 5, 6, &pwm2}; // right middle
+Leg leg3 = {0, 1, 2, &pwm1}; // rear left
+Leg leg4 = {8, 9, 10, &pwm2}; // front right
+Leg leg5 = {0, 1, 2, &pwm2}; // left middle
+Leg leg6 = {8, 9, 10, &pwm1}; // rear right
 
 Leg* allLegs[6] = { &leg1, &leg2, &leg3, &leg4, &leg5, &leg6 };
 
@@ -73,13 +73,14 @@ void setup() {
   Serial.begin(9600);
   pwm1.begin();
   pwm1.setPWMFreq(50);
+  delay(10);
   pwm2.begin();
   pwm2.setPWMFreq(50);
   delay(10);
 
   // Initialize all legs to neutral position
   for (int i = 0; i < 6; i++) {
-    computeIK(*allLegs[i], 70.0, -130, 0);
+    computeIK(*allLegs[i], 150, -90, 0);
     moveLeg(*allLegs[i]);
   }
   delay(2000);
@@ -90,32 +91,32 @@ void loop() {
     
   for (float t = 0; t <= 1.0; t += 0.05) {
     int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -130 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg1, 70.0, y, z);
+    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
+    computeIK(leg1, 150, y, z);
     moveLeg(leg1);
     delay(10);
   }
 
   for (float t = 0; t <= 1.0; t += 0.05) {
     int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -130 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg2, 70.0, y, -z);
+    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
+    computeIK(leg2, 150, y, -z);
     moveLeg(leg2);
     delay(10);
   }
 
   for (float t = 0; t <= 1.0; t += 0.05) {
     int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -130 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg3, 70.0, y, z);
+    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
+    computeIK(leg3, 150, y, z);
     moveLeg(leg3);
     delay(10);
   }
 
   for (float t = 0; t <= 1.0; t += 0.05) {
     int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -130 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg4, 70.0, y, -z);
+    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
+    computeIK(leg4, 150, y, -z);
     moveLeg(leg4);
     delay(10);
   }
@@ -123,43 +124,42 @@ void loop() {
 
   for (float t = 0; t <= 1.0; t += 0.05) {
     int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -130 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg5, 70.0, y, z);
+    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
+    computeIK(leg5, 150, y, z);
     moveLeg(leg5);
     delay(10);
   }
 
   for (float t = 0; t <= 1.0; t += 0.05) {
     int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -130 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg6, 70.0, y, -z);
+    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
+    computeIK(leg6, 150, y, -z);
     moveLeg(leg6);
     delay(10);
   }
 
 
   // Pull phase: all legs push together
-    computeIK(leg1, 70.0, -130, -20);
+    computeIK(leg1, 150, -90, -20);
     moveLeg(leg1);
     delay(10);
-    computeIK(leg2, 70.0, -130, 20);
+    computeIK(leg2, 150, -90, 20);
     moveLeg(leg2);
     delay(10);
-    computeIK(leg3, 70.0, -130, -20);
+    computeIK(leg3, 150, -90, -20);
     moveLeg(leg3);
     delay(10);
-    computeIK(leg4, 70.0, -130, 20);
+    computeIK(leg4, 150, -90, 20);
     moveLeg(leg4);
     delay(10);
-    computeIK(leg5, 70.0, -130, -20);
+    computeIK(leg5, 150, -90, -20);
     moveLeg(leg5);
     delay(10);
-    computeIK(leg6, 70.0, -130, 20);
+    computeIK(leg6, 150, -90, 20);
     moveLeg(leg6);
     delay(10);
 
 
   delay(300); // Pause before next cycle
 }
-
 
