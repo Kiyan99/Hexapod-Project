@@ -11,6 +11,11 @@ const float link_2 = 137.0; // mm
 Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x40); // First board
 Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x41); // Second board
 
+int global_X = 100;  // This replaces all the individual global_X values
+int global_y = -120; // replace all the y values
+int arc = 40; // this is the value that determines the height of the stepping arc
+
+
 // Leg structure definition
 struct Leg {
   int servo0; // Shoulder yaw (theta1)
@@ -78,11 +83,21 @@ void setup() {
   pwm2.setPWMFreq(50);
   delay(10);
 
+
   // Initialize all legs to neutral position
   for (int i = 0; i < 6; i++) {
-    computeIK(*allLegs[i], 150, -90, 0);
+    computeIK(*allLegs[i], global_X, global_y, 0);
     moveLeg(*allLegs[i]);
   }
+
+  Serial.print("Motor 1: ");
+  Serial.print(leg1.theta1_pwm);
+  Serial.print(" Motor 2: ");
+  Serial.print(leg1.theta2_pwm);
+  Serial.print(" Motor 3: ");
+  Serial.println(leg1.theta3_pwm);
+
+
   delay(2000);
 }
 
@@ -90,72 +105,72 @@ void loop() {
 
     
   for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg1, 150, y, z);
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg1, global_X, y, z);
     moveLeg(leg1);
     delay(10);
   }
 
   for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg2, 150, y, -z);
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg2, global_X, y, -z);
     moveLeg(leg2);
     delay(10);
   }
 
   for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg3, 150, y, z);
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg3, global_X, y, z);
     moveLeg(leg3);
     delay(10);
   }
 
   for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg4, 150, y, -z);
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg4, global_X, y, -z);
     moveLeg(leg4);
     delay(10);
   }
 
 
   for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg5, 150, y, z);
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg5, global_X, y, z);
     moveLeg(leg5);
     delay(10);
   }
 
   for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -20 + t * 20;              // Forward swing
-    int y = -90 + 20 * sin(M_PI * t);           // Lift arc
-    computeIK(leg6, 150, y, -z);
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg6, global_X, y, -z);
     moveLeg(leg6);
     delay(10);
   }
 
 
   // Pull phase: all legs push together
-    computeIK(leg1, 150, -90, -20);
+    computeIK(leg1, global_X, global_y, -20);
     moveLeg(leg1);
     delay(10);
-    computeIK(leg2, 150, -90, 20);
+    computeIK(leg2, global_X, global_y, 20);
     moveLeg(leg2);
     delay(10);
-    computeIK(leg3, 150, -90, -20);
+    computeIK(leg3, global_X, global_y, -20);
     moveLeg(leg3);
     delay(10);
-    computeIK(leg4, 150, -90, 20);
+    computeIK(leg4, global_X, global_y, 20);
     moveLeg(leg4);
     delay(10);
-    computeIK(leg5, 150, -90, -20);
+    computeIK(leg5, global_X, global_y, -20);
     moveLeg(leg5);
     delay(10);
-    computeIK(leg6, 150, -90, 20);
+    computeIK(leg6, global_X, global_y, 20);
     moveLeg(leg6);
     delay(10);
 
