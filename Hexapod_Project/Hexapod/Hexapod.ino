@@ -1,171 +1,187 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
 
-// Define screen dimensions
-#define SCREEN_WIDTH 128
-#define SCREEN_HEIGHT 64
+// Constants
+#define SERVO_MIN 150  // min value for the servos 0 degrees 
+#define SERVO_MAX 600 // max value for the servos 180 degrees
 
-// Create display object (for ESP32 you can define Wire pins if needed)
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
+const float link_1 = 70.0;  // length of link 1 in mm
+const float link_2 = 137.0; // length of link 2 in mm
 
-// Create PCA9685 object
-Adafruit_PWMServoDriver pwm = Adafruit_PWMServoDriver();
+Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x40); // First PCA9685 board
+Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x41); // Second PCA9685 board
 
-#define SERVO_MIN  150 // Pulse length for 0 degrees
-#define SERVO_MAX  600 // Pulse length for 180 degrees
-
-const float link_1 = 70; // Length of first link in mm
-const float link_2 = 137; // Length of second link in mm
+int global_X = 100;  // This replaces all the individual global_X values
+int global_y = -120; // replace all the y values
+int arc = 40; // this is the value that determines the height of the stepping arc
 
 
-int x = 100;  // x axis value
-int y = 0;  // y axis value 
-int z = 0;  // z axis value
-double c = 0; // Hypotenuse
-double L = 0; // distance from x-z origin
+// Leg structure definition
+struct Leg {
+  int servo0; // Shoulder yaw (theta1)
+  int servo1; // Shoulder pitch (theta2)
+  int servo2; // Elbow (theta3)
 
+  Adafruit_PWMServoDriver* pwm; // Pointer to the correct board
 
-double theta1_rad, theta2_rad, theta3_rad;  // theta 1 & 2 & 3 in radians set as doubles for more accuracy
+  int x, y, z;  // variables for 3 axis
+  double c, L; // variables for c & L
 
-int  theta1_deg, theta2_deg, theta3_deg;  // theta 1 & 2 & 3 in degrees
+  int theta1_deg, theta2_deg, theta3_deg; // theta angles in degrees
+  int theta1_pwm, theta2_pwm, theta3_pwm; // theta angles in pwm
+};
 
-int theta1, theta2, theta3; // theta 1 & 2 & 3 which will be in PMW
+// Define 6 legs and assign their PWM channels
+Leg leg1 = {12, 13, 14, &pwm2};  // front left
+Leg leg2 = {4, 5, 6, &pwm2}; // right middle
+Leg leg3 = {0, 1, 2, &pwm1}; // rear left
+Leg leg4 = {8, 9, 10, &pwm2}; // front right
+Leg leg5 = {0, 1, 2, &pwm2}; // left middle
+Leg leg6 = {8, 9, 10, &pwm1}; // rear right
 
+Leg* allLegs[6] = { &leg1, &leg2, &leg3, &leg4, &leg5, &leg6 }; // one array for all 6 legs to controle all together
 
-// Preset positions for walking 
-int z_start = -50;     // Start position for Z
-int z_end = 50;        // End position for Z
-int y_ground = -130;   // Define how far the end-point can go down
-int h = 40;            // Define how far the end-point will go up
+// Inverse Kinematics for one leg
+void computeIK(Leg &leg, int x, int y, int z) {
+  leg.x = x; // x value from leg structure
+  leg.y = y; // y value from leg structure
+  leg.z = z; // z value from leg structure
 
+  leg.L = sqrt(x * x + z * z); // calculating L
+  leg.c = sqrt(leg.L * leg.L + y * y); // calculating C
 
+  // calculating theta 1, 2, 3 in radians
+  double theta1_rad = atan2(x, z);
+  double theta2_rad = acos((pow(link_1, 2) + pow(leg.c, 2) - pow(link_2, 2)) / (2 * link_1 * leg.c)) + atan2(y, leg.L); 
+  double theta3_rad = acos((pow(link_1, 2) + pow(link_2, 2) - pow(leg.c, 2)) / (2 * link_1 * link_2)); 
 
-// IK function declaration and implementation
-void IK(int x,int y, int z) {
+  // converting theta 1, 2, 3 to degrees
+  leg.theta1_deg = theta1_rad * (180.0 / M_PI); 
+  leg.theta2_deg = theta2_rad * (180.0 / M_PI);
+  leg.theta3_deg = 180 - (theta3_rad * (180.0 / M_PI));
+}
 
-  // calculating theta 1
-  theta1_rad = atan2(x, z);
-
-  // calculating the distance from x-z origin
-  L = sqrt(x * x + z * z);
-
-  //calculation for hypotenuse
-  c = sqrt(L * L + y * y);
-  
-  // calculations for theta 2
-  theta2_rad = acos( ( (link_1 * link_1)  + (c * c) - (link_2 * link_2) ) / (2 * link_1 * c) ) + atan2(y, L);
-  
-  // calculations for theta 3
-  theta3_rad = acos( ( (link_1 * link_1) + (link_2 * link_2) - (c * c) ) / (2 * link_1 * link_2) );
-
-  // Converting theta 1 & 2 & 3 to degrees from rads
-  theta1_deg = theta1_rad * (180/M_PI);
-
-  theta2_deg = theta2_rad * (180/M_PI);
-
-  theta3_deg = theta3_rad * (180/M_PI);
+// Move servos for one leg
+void moveLeg(Leg &leg) {
+  // mapping the theta 1, 2, 3 from degrees to pwm
+  leg.theta1_pwm = map(leg.theta1_deg, 0, 180, SERVO_MIN, SERVO_MAX);
+  leg.theta2_pwm = map(leg.theta2_deg, 0, 180, SERVO_MIN, SERVO_MAX);
+  leg.theta3_pwm = map(leg.theta3_deg, 0, 180, SERVO_MIN, SERVO_MAX);
+  // snding the pwm to each board and motor
+  leg.pwm->setPWM(leg.servo0, 0, leg.theta1_pwm);
+  delay(20);
+  leg.pwm->setPWM(leg.servo1, 0, leg.theta2_pwm);
+  delay(20);
+  leg.pwm->setPWM(leg.servo2, 0, leg.theta3_pwm);
+  delay(20);
 
 }
 
-
 void setup() {
-  // start the Serial port
+  //start serial terminal
   Serial.begin(9600);
-  Serial.println("PCA9685 Servo Test"); // Print text
+  pwm1.begin(); // start board 1
+  pwm1.setPWMFreq(50); // set frequency to 50Hz for board 1
+  delay(10); // wait 10ms
+  pwm2.begin(); //start board 2
+  pwm2.setPWMFreq(50); // set frequency to 50Hz for board 1
+  delay(10);
 
-  // Initialize OLED display
-  if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;); // Loop forever if failed
+
+  // Initialize all legs to neutral position
+  for (int i = 0; i < 6; i++) {
+    computeIK(*allLegs[i], global_X, global_y, 0);
+    moveLeg(*allLegs[i]);
   }
 
-  // Clear the display
-  display.clearDisplay();
+  // print all the pwm values for theta 1, 2, 3
+  Serial.print("Motor 1: ");
+  Serial.print(leg1.theta1_pwm);
+  Serial.print(" Motor 2: ");
+  Serial.print(leg1.theta2_pwm);
+  Serial.print(" Motor 3: ");
+  Serial.println(leg1.theta3_pwm);
 
-  // Start the pwm function
-  pwm.begin();
-  pwm.setPWMFreq(50);  // Standard servo frequency: 50 Hz
-  delay(10); // 10ms delay
 
-  // Rotating all servos to 90 degrees
-  pwm.setPWM(0, 0, 375);
-  delay(1000);
-  pwm.setPWM(1, 0, 375);
-  delay(1000);
-  pwm.setPWM(2, 0, 375);
-  delay(1000);
+  delay(2000); // wait 2 seconds
 }
 
 void loop() {
 
-  // for loop calculating 20 values for Z and Y axis
-  for (float t = 0; t <= 1.0; t += 0.05){
-    
-    // first calculating Z value
-    z = ( 1 - t ) * z_start + ( t * z_end );
+  // repeat the for loop 20 times  
+  for (float t = 0; t <= 1.0; t += 0.05) {
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);       // Lift arc
+    computeIK(leg1, global_X, y, z);             // call computeIK to compute the angles 
+    moveLeg(leg1);                               // call moveleg function to move legs
+    delay(10);                                   // wait 10ms
+  }
 
-    // then calculationg Y value
-    y = y_ground + ( h * sin(M_PI * t) );
+  for (float t = 0; t <= 1.0; t += 0.05) {
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);       // Lift arc
+    computeIK(leg2, global_X, y, -z);
+    moveLeg(leg2);
+    delay(10);
+  }
 
-    // passing the values to the IK function
-    IK(x, y, z);
+  for (float t = 0; t <= 1.0; t += 0.05) {
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg3, global_X, y, z);
+    moveLeg(leg3);
+    delay(10);
+  }
 
-    // map theta 1 & 2 & 3 from degrees to pwm
-    theta1 = map(theta1_deg, 0, 180, SERVO_MIN, SERVO_MAX);
-    theta2 = map(theta2_deg, 0, 180, SERVO_MIN, SERVO_MAX);
-    theta3 = map(180 - theta3_deg, 0, 180, SERVO_MIN, SERVO_MAX); // subtracting 180 from the theta 3 angle
-
-    // Clear the display first
-    display.clearDisplay();
-
-    // if hypotenuse is in range then pass the values to the mototrs
-    if ( c < (link_1 + link_2) ){
-      
-      // passing PMW to the motors
-      pwm.setPWM(0, 0, theta1);
-      delay(25);                // 25ms delay
-      pwm.setPWM(1, 0, theta2);
-      delay(25);
-      pwm.setPWM(2, 0, theta3);
-      delay(25);
-
-
-      // display the position
-      display.setTextSize(1.5);
-      display.setTextColor(SSD1306_WHITE);
-      display.setCursor(0, 2);
-      display.print(F("X:")); // display X positions
-      display.print(x);
-      display.print(F(" Y:")); // display Y positions
-      display.print(y);
-      display.print(F(" Z:")); // display Z positions
-      display.print(z);
-      display.setCursor(0, 20);
-      display.print(F("C:")); // display C positions
-      display.print(c);
-
-    }
-    else{
-      // Show out of reach message
-      display.setTextSize(2);
-      display.setTextColor(SSD1306_WHITE);
-      display.setCursor(0, 20);
-      display.println(F("Out of"));
-      display.setCursor(0, 40);
-      display.println(F("Reach!"));
-      
-    }
-
-    // Finally update the display after drawing everything
-    display.display();
-
+  for (float t = 0; t <= 1.0; t += 0.05) {
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg4, global_X, y, -z);
+    moveLeg(leg4);
+    delay(10);
   }
 
 
-}
+  for (float t = 0; t <= 1.0; t += 0.05) {
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg5, global_X, y, z);
+    moveLeg(leg5);
+    delay(10);
+  }
 
+  for (float t = 0; t <= 1.0; t += 0.05) {
+    int z = (1 - t) * -50 + t * 50;              // Forward swing
+    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    computeIK(leg6, global_X, y, -z);
+    moveLeg(leg6);
+    delay(10);
+  }
+
+
+  // Pull phase: all legs pull back together to move the body forward
+    computeIK(leg1, global_X, global_y, -20);
+    moveLeg(leg1);
+    delay(10);
+    computeIK(leg2, global_X, global_y, 20);
+    moveLeg(leg2);
+    delay(10);
+    computeIK(leg3, global_X, global_y, -20);
+    moveLeg(leg3);
+    delay(10);
+    computeIK(leg4, global_X, global_y, 20);
+    moveLeg(leg4);
+    delay(10);
+    computeIK(leg5, global_X, global_y, -20);
+    moveLeg(leg5);
+    delay(10);
+    computeIK(leg6, global_X, global_y, 20);
+    moveLeg(leg6);
+    delay(10);
+
+
+  delay(300); // Pause for 300ms before next cycle
+}
 
 
 
