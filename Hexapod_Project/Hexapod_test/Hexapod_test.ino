@@ -66,11 +66,11 @@ void moveLeg(Leg &leg) {
   leg.theta3_pwm = map(leg.theta3_deg, 0, 180, SERVO_MIN, SERVO_MAX);
   // first board
   leg.pwm->setPWM(leg.servo0, 0, leg.theta1_pwm);
-  delay(20);
+  delay(5);
   leg.pwm->setPWM(leg.servo1, 0, leg.theta2_pwm);
-  delay(20);
+  delay(5);
   leg.pwm->setPWM(leg.servo2, 0, leg.theta3_pwm);
-  delay(20);
+  delay(5);
 
 }
 
@@ -105,76 +105,69 @@ void loop() {
 
     
   for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -50 + t * 50;              // Forward swing
-    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
+    int z = (1 - t) * -30 + t * 30;              // Forward swing
+    int y = global_y + 30 * sin(M_PI * t);           // Lift arc
     computeIK(leg1, global_X, y, z);
-    moveLeg(leg1);
-    delay(10);
-  }
-
-  for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -50 + t * 50;              // Forward swing
-    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
     computeIK(leg2, global_X, y, -z);
-    moveLeg(leg2);
-    delay(10);
-  }
-
-  for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -50 + t * 50;              // Forward swing
-    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
     computeIK(leg3, global_X, y, z);
-    moveLeg(leg3);
-    delay(10);
-  }
-
-  for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -50 + t * 50;              // Forward swing
-    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
-    computeIK(leg4, global_X, y, -z);
-    moveLeg(leg4);
-    delay(10);
-  }
-
-
-  for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -50 + t * 50;              // Forward swing
-    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
-    computeIK(leg5, global_X, y, z);
-    moveLeg(leg5);
-    delay(10);
-  }
-
-  for (float t = 0; t <= 1.0; t += 0.05) {
-    int z = (1 - t) * -50 + t * 50;              // Forward swing
-    int y = global_y + 40 * sin(M_PI * t);           // Lift arc
-    computeIK(leg6, global_X, y, -z);
-    moveLeg(leg6);
-    delay(10);
-  }
-
-
-  // Pull phase: all legs push together
-    computeIK(leg1, global_X, global_y, -20);
     moveLeg(leg1);
-    delay(10);
-    computeIK(leg2, global_X, global_y, 20);
     moveLeg(leg2);
-    delay(10);
-    computeIK(leg3, global_X, global_y, -20);
     moveLeg(leg3);
-    delay(10);
-    computeIK(leg4, global_X, global_y, 20);
+    
+    int z_pull = (1 - t) * 30 + t * -30;  // Pull back smoothly
+    computeIK(leg4, global_X, global_y, -z_pull);
+    computeIK(leg5, global_X, global_y, z_pull);
+    computeIK(leg6, global_X, global_y, -z_pull);
     moveLeg(leg4);
-    delay(10);
-    computeIK(leg5, global_X, global_y, -20);
     moveLeg(leg5);
-    delay(10);
-    computeIK(leg6, global_X, global_y, 20);
     moveLeg(leg6);
-    delay(10);
+  }
 
 
-  delay(300); // Pause before next cycle
+
+  for (float t = 0; t <= 1.0; t += 0.05) {
+    int z = (1 - t) * -30 + t * 30;              // Forward swing
+    int y = global_y + 30 * sin(M_PI * t);           // Lift arc
+    computeIK(leg4, global_X, y, -z);
+    computeIK(leg5, global_X, y, z);
+    computeIK(leg6, global_X, y, -z);
+    moveLeg(leg4);
+    moveLeg(leg5);
+    moveLeg(leg6);
+
+    int z_pull = (1 - t) * 30 + t * -30;  // Pull back smoothly
+    computeIK(leg1, global_X, global_y, z_pull);
+    computeIK(leg2, global_X, global_y, -z_pull);
+    computeIK(leg3, global_X, global_y, z_pull);
+    moveLeg(leg1);
+    moveLeg(leg2);
+    moveLeg(leg3);
+
+  }
+
+
+
+
+  // for (float t = 0; t <= 1.0; t += 0.05) {
+  //   int z = (1 - t) * 30 + t * -30;  // Pull back smoothly
+
+  //   // All legs stay on ground (no lifting Y)
+  //   computeIK(leg1, global_X, global_y, z);
+  //   computeIK(leg2, global_X, global_y, -z);
+  //   computeIK(leg3, global_X, global_y, z);
+  //   computeIK(leg4, global_X, global_y, -z);
+  //   computeIK(leg5, global_X, global_y, z);
+  //   computeIK(leg6, global_X, global_y, -z);
+
+  //   moveLeg(leg1);
+  //   moveLeg(leg2);
+  //   moveLeg(leg3);
+  //   moveLeg(leg4);
+  //   moveLeg(leg5);
+  //   moveLeg(leg6);
+  // }
+
+
+
 }
 
