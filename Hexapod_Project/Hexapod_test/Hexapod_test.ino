@@ -5,14 +5,15 @@
 #define SERVO_MIN 150
 #define SERVO_MAX 600
 
-const float link_1 = 70.0;  // mm
-const float link_2 = 137.0; // mm
+const float link_1 = 61.0;  // mm
+const float link_2 = 145.0; // mm
+const float d = 61.0; // offset in X direction
 
 Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x40); // First board
 Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x41); // Second board
 
 int global_x = 100;  // This replaces all the individual global_x values
-int global_y = -120; // replace all the y values
+int global_y = -140; // replace all the y values
 int arc = 40; // this is the value that determines the height of the stepping arc
 
 
@@ -37,7 +38,7 @@ Leg leg2 = {4, 5, 6, &pwm2}; // right middle
 Leg leg3 = {0, 1, 2, &pwm1}; // rear left
 Leg leg4 = {8, 9, 10, &pwm2}; // front right
 Leg leg5 = {0, 1, 2, &pwm2}; // left middle
-Leg leg6 = {8, 9, 10, &pwm1}; // rear right
+Leg leg6 = {4, 5, 6, &pwm1}; // rear right
 
 // Storing all legs in one array
 Leg* allLegs[6] = { &leg1, &leg2, &leg3, &leg4, &leg5, &leg6 };
@@ -49,17 +50,20 @@ void computeIK(Leg &leg, int x, int y, int z) {
   leg.z = z;
 
   leg.L = sqrt(x * x + z * z);
-  leg.c = sqrt(leg.L * leg.L + y * y);
+  double theta1_rad = atan2(x, z);
+
+  int x_p = leg.L - d;
+  leg.c = sqrt(x_p * x_p + y * y);
   
   // Calculating theta angles in radians
-  double theta1_rad = atan2(x, z);
   double theta2_rad = acos((pow(link_1, 2) + pow(leg.c, 2) - pow(link_2, 2)) / (2 * link_1 * leg.c)) + atan2(y, leg.L);
   double theta3_rad = acos((pow(link_1, 2) + pow(link_2, 2) - pow(leg.c, 2)) / (2 * link_1 * link_2));
 
   // Converting theta angles to degrees
   leg.theta1_deg = theta1_rad * (180.0 / M_PI);
   leg.theta2_deg = theta2_rad * (180.0 / M_PI);
-  leg.theta3_deg = 180 - (theta3_rad * (180.0 / M_PI));
+  leg.theta3_deg = theta3_rad * (180.0 / M_PI);
+  //leg.theta3_deg = 180 - (theta3_rad * (180.0 / M_PI));
 }
 
 // Move servos for one leg
@@ -81,21 +85,23 @@ void moveLeg(Leg &leg) {
 
 
 
-void tripod_gait() {
-   // for-loop will run 10 timmes
+void tripod_forward() {
+
+  // for-loop will run 10 timmes
+  // Phase 1
   for (float t = 0; t <= 1.0; t += 0.1) {
     
     // Moving forward
-    int z = (1 - t) * -30 + t * 30;              // Forward swing
+    int z = (1 - t) * -15 + t * 15;              // Forward swing
     int y = global_y + 30 * sin(M_PI * t);           // Lift arc
 
 
     // Front legs
     // Pulling and pushing values used by front and read legs
-    int z_push = (1 - t) * 0 + t * 60;
-    int z_pull = (1 - t) * 60;  
-    int x_push = (1 - t) * 50 + t * 100;
-    int x_pull = (1 - t) * 100 + t * 50;  
+    int z_push = (1 - t) * 0 + t * 30;
+    int z_pull = (1 - t) * 30;  
+    int x_push = (1 - t) * 50 + t * global_x;
+    int x_pull = (1 - t) * global_x + t * 50;  
     computeIK(leg1, x_push, y, z_push);
     computeIK(leg4, x_pull, global_y, -z_pull);
     moveLeg(leg1);
@@ -103,7 +109,7 @@ void tripod_gait() {
 
     // Middle legs
     // Pulling back for middle legs
-    int z_mid_pull = (1 - t) * 30 + t * -30;
+    int z_mid_pull = (1 - t) * 15 + t * -15;
     computeIK(leg2, global_x, y, -z);
     computeIK(leg5, global_x, global_y, z_mid_pull);  
     moveLeg(leg2); 
@@ -120,19 +126,19 @@ void tripod_gait() {
   }
 
 
-
+  // Phase 2
   for (float t = 0; t <= 1.0; t += 0.1) {
     
     // Moving forward
-    int z = (1 - t) * -30 + t * 30;              // Forward swing
+    int z = (1 - t) * -15 + t * 15;              // Forward swing
     int y = global_y + 30 * sin(M_PI * t);           // Lift arc
 
 
     //front Legs
-    int z_push = (1 - t) * 0 + t * 60;
-    int z_pull = (1 - t) * 60;  
-    int x_push = (1 - t) * 50 + t * 100;
-    int x_pull = (1 - t) * 100 + t * 50;  
+    int z_push = (1 - t) * 0 + t * 30;
+    int z_pull = (1 - t) * 30;  
+    int x_push = (1 - t) * 50 + t * global_x;
+    int x_pull = (1 - t) * global_x + t * 50;  
     computeIK(leg4, x_push, y, -z_push);
     computeIK(leg1, x_pull, global_y, z_pull);
     moveLeg(leg4);
@@ -142,7 +148,7 @@ void tripod_gait() {
 
     // Midlle Legs
     // Pulling back
-    int z_mid_pull = (1 - t) * 30 + t * -30;
+    int z_mid_pull = (1 - t) * 15 + t * -15;
     computeIK(leg5, global_x, y, z);
     computeIK(leg2, global_x, global_y, -z_mid_pull);
     moveLeg(leg5);
@@ -160,13 +166,93 @@ void tripod_gait() {
 }
 
 
+void tripod_revers(){
+  // In this function legs are reversed, it is bassically walking forward with
+  // front and rear legs being swapped
+  // Phase 1
+   // for-loop will run 10 timmes
+  for (float t = 0; t <= 1.0; t += 0.1) {
+    
+    
+    int y = global_y + 30 * sin(M_PI * t);           // Lift arc
+
+
+    // Front legs
+    // Pulling and pushing values used by front legs
+    int z_push = (1 - t) * 0 + t * 30;
+    int z_pull = (1 - t) * 30;  
+    int x_push = (1 - t) * 50 + t * global_x;
+    int x_pull = (1 - t) * global_x + t * 50;  
+    computeIK(leg6, x_push, y, z_push);
+    computeIK(leg3, x_pull, global_y, -z_pull);
+    moveLeg(leg6);
+    moveLeg(leg3);
+
+    // Middle legs
+    // Pulling back for middle legs
+    int z = (1 - t) * -15 + t * 15; 
+    computeIK(leg5, global_x, y, -z);
+    computeIK(leg2, global_x, global_y, -z);  
+    moveLeg(leg5); 
+    moveLeg(leg2);     
+
+
+    // Rear legs    
+    computeIK(leg4, x_pull, y, -z_pull);
+    computeIK(leg1, x_push, global_y, z_push);
+    moveLeg(leg4);
+    moveLeg(leg1);    
+
+
+  }
+
+
+  // Phase 2
+  for (float t = 0; t <= 1.0; t += 0.1) {
+    
+    // Moving forward
+                  // Forward swing
+    int y = global_y + 30 * sin(M_PI * t);           // Lift arc
+
+
+    //front Legs
+    int z_push = (1 - t) * 0 + t * 30;
+    int z_pull = (1 - t) * 30;  
+    int x_push = (1 - t) * 50 + t * global_x;
+    int x_pull = (1 - t) * global_x + t * 50;  
+    computeIK(leg6, x_pull, global_y, z_pull);
+    computeIK(leg3, x_push, y, -z_push);
+    moveLeg(leg6);
+    moveLeg(leg3);
+
+
+
+    // Midlle Legs
+    // Pulling back
+    int z = (1 - t) * -15 + t * 15;
+    computeIK(leg5, global_x, global_y, z);
+    computeIK(leg2, global_x, y, z);
+    moveLeg(leg5);
+    moveLeg(leg2);
+
+
+
+    // Rear legs
+    computeIK(leg4, x_push, global_y, -z_push);
+    computeIK(leg1, x_pull, y, z_pull);
+    moveLeg(leg1);
+    moveLeg(leg4);
+
+  }
+
+}
 
 
 
 
 void turn_right(){
 
-
+  // Phase 1
   for (float t = 0; t <= 1.0; t += 0.1){
 
     int z = (1 - t) * -30 + t * 30;              // Forward swing
@@ -192,7 +278,7 @@ void turn_right(){
   }
 
 
-
+  // Phase 2
   for (float t = 0; t <= 1.0; t += 0.1){
 
     int z = (1 - t) * -30 + t * 30;              // Forward swing
@@ -225,6 +311,7 @@ void turn_right(){
 
 void turn_left(){
 
+  // Phase 1
   for (float t = 0; t <= 1.0; t += 0.1){
 
     int z = (1 - t) * 30 + t * -30;              // Forward swing
@@ -250,7 +337,7 @@ void turn_left(){
   }
 
 
-
+  // Phase 2
   for (float t = 0; t <= 1.0; t += 0.1){
 
     int z = (1 - t) * 30 + t * -30;              // Forward swing
@@ -278,10 +365,137 @@ void turn_left(){
 }
 
 
+void crab_walk_right(){
+
+  // Phase 1
+  for (float t = 0; t <= 1.0; t += 0.1){
+
+    int z = (1 - t) * 0 + t * 20;              // Forward swing
+    int y = global_y + 30 * sin(M_PI * t);           // Lift arc      
+    int x_push = (1 - t) * 70 + t * global_x; 
+    int x_pull = (1 - t) * global_x + t * 70;
+    
+
+    computeIK(leg4, x_push, y, z);
+    moveLeg(leg4);
+    computeIK(leg5, x_pull, y, 0);
+    moveLeg(leg5);
+    computeIK(leg6, x_push, y, -z);
+    moveLeg(leg6);
+
+
+    computeIK(leg1, x_push, global_y, -z);
+    moveLeg(leg1);
+    computeIK(leg2, x_pull, global_y, 0);
+    moveLeg(leg2);
+    computeIK(leg3, x_push, global_y, z);
+    moveLeg(leg3);
+
+  }
+
+  // Phase 2
+  for (float t = 0; t <= 1.0; t += 0.1){
+
+
+    int y = global_y + 30 * sin(M_PI * t);           // Lift arc      
+    int x_push = (1 - t) * 70 + t * global_x; 
+    int x_pull = (1 - t) * global_x + t * 70;     
+    int z_pull = (1 - t) * 20 + t * 0;
+
+    computeIK(leg4, x_pull, global_y, z_pull);
+    moveLeg(leg4);
+    computeIK(leg5, x_push, global_y, 0);
+    moveLeg(leg5);
+    computeIK(leg6, x_pull, global_y, -z_pull);
+    moveLeg(leg6);
+
+
+    computeIK(leg1, x_pull, y, -z_pull);
+    moveLeg(leg1);
+    computeIK(leg2, x_push, y, 0);
+    moveLeg(leg2);
+    computeIK(leg3, x_pull, y, z_pull);
+    moveLeg(leg3);
+    
+
+  }
+
+
+}
+
+
+void crab_walk_left(){
+
+  // Phase 1
+  for (float t = 0; t <= 1.0; t += 0.1){
+
+    int z = (1 - t) * 0 + t * 20;              // Forward swing
+    int y = global_y + 30 * sin(M_PI * t);           // Lift arc      
+    int x_push = (1 - t) * 70 + t * global_x; 
+    int x_pull = (1 - t) * global_x + t * 70;
+
+    computeIK(leg4, x_push, global_y, z);
+    moveLeg(leg1);
+    computeIK(leg5, x_pull, global_y, 0);
+    moveLeg(leg2);
+    computeIK(leg6, x_push, global_y, -z);
+    moveLeg(leg3);
+
+
+
+    computeIK(leg1, x_push, y, -z);
+    moveLeg(leg4);
+    computeIK(leg2, x_pull, y, 0);
+    moveLeg(leg5);
+    computeIK(leg3, x_push, y, z);
+    moveLeg(leg6);
+
+
+  }
+
+  // Phase 2
+  for (float t = 0; t <= 1.0; t += 0.1){
+
+    int y = global_y + 30 * sin(M_PI * t);           // Lift arc      
+    int x_push = (1 - t) * 70 + t * global_x; 
+    int x_pull = (1 - t) * global_x + t * 70;     
+    int z_pull = (1 - t) * 20 + t * 0;
+
+    computeIK(leg4, x_pull, y, z_pull);
+    moveLeg(leg4);
+    computeIK(leg5, x_push, y, 0);
+    moveLeg(leg5);
+    computeIK(leg6, x_pull, y, -z_pull);
+    moveLeg(leg6);
+
+
+
+    computeIK(leg1, x_pull, global_y, -z_pull);
+    moveLeg(leg1);
+    computeIK(leg2, x_push, global_y, 0);
+    moveLeg(leg2);
+    computeIK(leg3, x_pull, global_y, z_pull);
+    moveLeg(leg3);
+
+
+  }
+
+
+
+}
+
+  // Global char variable that saves the last key entered in the Serial Monitor
+char currentCommand = '\0';
 
 void setup() {
   // initialise boards and serial monitor
-  Serial.begin(9600);
+  Serial.begin(115200);
+    while (!Serial) {
+    ; // Wait for serial connection
+  }
+  Serial.println("ESP32 ready. Type a key and press Enter:");
+
+  // Initializes the two PWM boards (servo drivers) and set them to 50Hz.
   pwm1.begin();
   pwm1.setPWMFreq(50);
   delay(10);
@@ -297,20 +511,48 @@ void setup() {
   }
 
   delay(4000);
+
+}
+
+// Checks if a character is one of your valid commands (w, s, a, d, q, e, v, x).
+static inline bool isValidKey(char c) {
+  return c=='w'||c=='s'||c=='a'||c=='d'||c=='q'||c=='e'||c=='v'||c=='x';
 }
 
 void loop() {
+  // Read any incoming byte(s)
+  while (Serial.available() > 0) {
+    char input = Serial.read();
 
-  //unsigned long t0;
+    // Ignore line endings and any junk
+    if (input == '\r' || input == '\n') continue;
 
-  // // Walk forward for 5 seconds
-  // t0 = millis();
-  // while (millis() - t0 < 5000) {
-  //   tripod_gait();
-  // }
-  // delay(500);
+    // Only update when it's a recognized command
+    if (isValidKey(input)) {
+      currentCommand = input;
+      Serial.print("Command: "); Serial.println(currentCommand);
+    } else {
+      // Unknown -> ignore, keep previous command running
+      Serial.print("Ignoring: "); Serial.println((int)input);
+    }
+  }
 
-  turn_left();
+  // Execute current command continuously
+  switch (currentCommand) {
+    case 'w': tripod_forward(); break;
+    case 's': tripod_revers();  break;
+    case 'a': turn_left();      break;
+    case 'd': turn_right();     break;
+    case 'q': crab_walk_left(); break;
+    case 'e': crab_walk_right();break;
+
+    case 'v': // neutralize all legs
+      for (int i = 0; i < 6; i++) {
+        computeIK(*allLegs[i], global_x, global_y, 0);
+        moveLeg(*allLegs[i]);
+      }
+      break;
+  }
 
 }
 
