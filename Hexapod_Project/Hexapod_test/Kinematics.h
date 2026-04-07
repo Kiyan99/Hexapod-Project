@@ -6,6 +6,7 @@
 #include <Adafruit_PWMServoDriver.h>
 #include <math.h>
 
+
 // Constants
 #define SERVO_MIN 102
 #define SERVO_MAX 434
@@ -18,6 +19,7 @@ extern const float d;
 extern int global_x;
 extern int global_y;
 extern int arc;
+
 
 // Leg structure definition
 struct Leg {

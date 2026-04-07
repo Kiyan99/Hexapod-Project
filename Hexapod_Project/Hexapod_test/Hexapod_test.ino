@@ -11,7 +11,7 @@ RF24 radio(16, 17); // CE & CSN
 byte address[][6] = {"Node1", "Node2"};
 
 // Global char variable that saves the last key entered in the Serial Monitor
-char currentCommand = '\0';
+char currentcommand = '\0';
 
 void setup() {
   // initialise boards and serial monitor
@@ -32,8 +32,8 @@ void setup() {
   // NRF24
   radio.begin();
   radio.setPALevel(RF24_PA_MIN);
-  radio.openWritingPipe(address[1]);
-  radio.openReadingPipe(1, address[0]);
+  radio.openWritingPipe(address[0]);
+  radio.openReadingPipe(1, address[1]);
   radio.startListening(); // RX mode
 
 
@@ -47,42 +47,37 @@ void setup() {
 
 }
 
-//Checks if a character is one of your valid commands (w, s, a, d, q, e, v, x).
-static inline bool isValidKey(char c) {
-  return c=='w'|| c=='s'|| c=='a'|| c=='d'|| c=='q'|| c=='e'|| c=='v'|| c=='x' || c=='z';
-}
+
+
+
+char last_command = '0';
+char command = '0';
+
+unsigned long t_start = 0;
+const unsigned long timeout = 250;
 
 void loop() {
 
-  // if (radio.available()) {
-  //     int command;
-  //     radio.read(&command, sizeof(command));
-  //     Serial.print("Command: ");
-  //     Serial.println(command);
-  // }
 
-
-
-
-  // Read any incoming byte(s)
-  while (Serial.available() > 0) {
-    char input = Serial.read();
-
-    // Ignore line endings and any junk
-    if (input == '\r' || input == '\n') continue;
-
-    // Only update when it's a recognized command
-    if (isValidKey(input)) {
-      currentCommand = input;
-      Serial.print("Command: "); Serial.println(currentCommand);
-    } else {
-      // Unknown -> ignore, keep previous command running
-      Serial.print("Ignoring: "); Serial.println((int)input);
-    }
+  if (radio.available()) {
+      radio.read(&command, sizeof(command));
+      Serial.print("command: ");
+      Serial.println(command);
+      t_start = millis();
   }
 
+  if ( millis() - t_start > timeout){
+    command = '0';
+  }
+
+  if(last_command != command){
+    gaits.reset_gaits();
+    last_command = command;
+  }
+
+
   // Execute current command continuously
-  switch (currentCommand) {
+  switch (command) {
     case 'w': gaits.tripod_forward();break;
 
     case 's': gaits.tripod_revers();break;
@@ -95,18 +90,7 @@ void loop() {
 
     case 'e': gaits.crab_walk_right();break;
 
-    case 'x': 
-      global_y = global_y + 5;
-      global_x = global_x + 5;
-      Serial.print("Decreasing height by 5mm, Y = ");
-      Serial.println(global_y);
-
-      for (int i = 0; i < 6; i++) {
-        computeIK(*allLegs[i], global_x, global_y, 0);
-        moveLeg(*allLegs[i]);
-      }
-      currentCommand = '\0';
-      break;
+    case 'x': gaits.down_up(); break;
 
     case 'z':
       global_y = global_y - 5;
@@ -118,7 +102,7 @@ void loop() {
         computeIK(*allLegs[i], global_x, global_y, 0);
         moveLeg(*allLegs[i]);
       }
-      currentCommand = '\0';
+      currentcommand = '\0';
       break;
 
     case 'v': // neutralize all legs
