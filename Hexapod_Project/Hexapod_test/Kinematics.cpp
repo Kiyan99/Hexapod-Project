@@ -21,12 +21,12 @@ Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x40);
 Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x41);
 
 // Define legs
-Leg leg1 = {2, 1, 0, &pwm1};  // front left
-Leg leg2 = {0, 1, 2, &pwm2};     // right middle
-Leg leg3 = {8, 9, 10, &pwm2};     // rear left
-Leg leg4 = {6, 5, 4, &pwm1};    // front right
-Leg leg5 = {8, 9, 10, &pwm1};     // left middle
-Leg leg6 = {12, 13, 14, &pwm2};     // rear right
+Leg leg1 = {12, 13, 14, &pwm2};  // front left
+Leg leg2 = {12, 13, 14, &pwm1};     // right middle
+Leg leg3 = {0, 1, 2, &pwm1};     // rear left
+Leg leg4 = {8, 9, 10, &pwm2};    // front right
+Leg leg5 = {0, 1, 2, &pwm2};     // left middle
+Leg leg6 = {4, 5, 6, &pwm1};     // rear right
 
 Leg* allLegs[6] = { &leg1, &leg2, &leg3, &leg4, &leg5, &leg6 };
 

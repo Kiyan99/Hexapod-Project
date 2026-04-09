@@ -39,7 +39,8 @@ void setup() {
 }
 
 void loop() {
-  // put your main code here, to run repeatedly:
+  
+  radio.startListening(); // RX mode
 
   int x1_raw = analogRead(J1_x);
   int y1_raw = analogRead(J1_y);
@@ -55,52 +56,60 @@ void loop() {
   int x2_voltage = (x2_raw / ADC_MAX) * ADC_REF;
   int y2_voltage = (y2_raw / ADC_MAX) * ADC_REF;
 
-  radio.stopListening(); // TX mode
 
+
+  if (radio.available()) {
+    float roll = 0.0f;
+    radio.read(&roll, sizeof(roll));
+    Serial.print("Roll: ");
+    Serial.println(roll);
+  }
+
+  
   if(x1_voltage == 0){
-    
+    radio.stopListening(); // TX mode
     char command = 's';
     radio.write(&command, sizeof(command));
     Serial.println("Revers command");
   }
   else if (x1_voltage == 3) {
-    
+    radio.stopListening(); // TX mode
     char command = 'w';
     radio.write(&command, sizeof(command));
     Serial.println("forward command");
   }
   else if (y1_voltage == 0) {
-    
+    radio.stopListening(); // TX mode
     char command = 'a';
     radio.write(&command, sizeof(command));
     Serial.println("Left command");
   }
   else if (y1_voltage == 3) {
-    
+    radio.stopListening(); // TX mode
     char command = 'd';
     radio.write(&command, sizeof(command));
     Serial.println("Right command");
   }
   else if (y2_voltage == 0){
-
+    radio.stopListening(); // TX mode
     char command = 'q';
     radio.write(&command, sizeof(command));
     Serial.println("Crab walk left");
   }
   else if (y2_voltage == 3){
-
+    radio.stopListening(); // TX mode
     char command = 'e';
     radio.write(&command, sizeof(command));
     Serial.println("Crab walk right");    
   }
 
   else if (sw1 == 0){
-
+    radio.stopListening(); // TX mode
     char command = 'x';
     radio.write(&command, sizeof(command));
     Serial.println("Sit down");       
   }
   
-  delay(200);
+  delay(150);
 
 }
