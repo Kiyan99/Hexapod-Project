@@ -5,6 +5,111 @@ Gaits::Gaits(){
 
 }
 
+
+void Gaits::tilt_control(float roll_voltage, float pitch_voltage, float rollDeg, float pitchDeg, float global_x, float global_y) {
+
+  // Smooth joystick voltages
+  float alpha_v = 0.3f;
+  roll_voltage_smooth  += alpha_v * (roll_voltage  - roll_voltage_smooth);
+  pitch_voltage_smooth += alpha_v * (pitch_voltage - pitch_voltage_smooth);
+
+  // Map voltages to target angles
+  float target_roll  = (roll_voltage_smooth  / 3.3f) * 20.0f - 10.0f;
+  float target_pitch = (pitch_voltage_smooth / 3.3f) * 20.0f - 10.0f;
+
+  if (fabs(target_roll) < 1.0f) {
+    target_roll = 0.0f;
+  }
+
+  if (fabs(target_pitch) < 1.0f) {
+    target_pitch = 0.0f;
+  }
+
+  // Smooth IMU angles
+  float alpha_r = 0.3f;
+  rollDeg_smooth  += alpha_r * (rollDeg  - rollDeg_smooth);
+  pitchDeg_smooth += alpha_r * (pitchDeg - pitchDeg_smooth);
+
+  // -------------------------
+  // ROLL ONLY
+  // -------------------------
+  if (target_roll != 0.0f) {
+    float roll_error = target_roll - rollDeg_smooth;
+
+    if (fabs(roll_error) < 1.0f) {
+      roll_error = 0.0f;
+    }
+
+    float kp_roll = 7.0f;
+    float roll_correction_raw = kp_roll * roll_error;
+
+    float alpha_c = 0.3f;
+    roll_correction_smooth += alpha_c * (roll_correction_raw - roll_correction_smooth);
+
+    float y_left  = global_y + roll_correction_smooth;
+    float y_right = global_y - roll_correction_smooth;
+
+    // Left side
+    computeIK(leg1, global_x, y_left, 0); moveLeg(leg1);
+    computeIK(leg3, global_x, y_left, 0); moveLeg(leg3);
+    computeIK(leg5, global_x, y_left, 0); moveLeg(leg5);
+
+    // Right side
+    computeIK(leg2, global_x, y_right, 0); moveLeg(leg2);
+    computeIK(leg4, global_x, y_right, 0); moveLeg(leg4);
+    computeIK(leg6, global_x, y_right, 0); moveLeg(leg6);
+
+    Serial.print("ROLL Target: ");
+    Serial.print(target_roll);
+    Serial.print("  Roll: ");
+    Serial.print(rollDeg_smooth);
+    Serial.print("  Error: ");
+    Serial.print(roll_error);
+    Serial.print("  Correction: ");
+    Serial.println(roll_correction_smooth);
+  }
+
+  // -------------------------
+  // PITCH ONLY
+  // front legs and back legs only
+  // middle legs unchanged
+  // -------------------------
+  else if (target_pitch != 0.0f) {
+    float pitch_error = target_pitch - pitchDeg_smooth;
+
+    if (fabs(pitch_error) < 1.0f) {
+      pitch_error = 0.0f;
+    }
+
+    float kp_pitch = 1.5f;
+    float pitch_correction_raw = kp_pitch * pitch_error;
+
+    float alpha_c = 0.5f;
+    pitch_correction_smooth += alpha_c * (pitch_correction_raw - pitch_correction_smooth);
+
+    float y_front = global_y + pitch_correction_smooth;
+    float y_back  = global_y - pitch_correction_smooth;
+
+    // Front legs only
+    computeIK(leg1, global_x, y_front, 0); moveLeg(leg1);
+    computeIK(leg4, global_x, y_front, 0); moveLeg(leg4);
+
+    // Back legs only
+    computeIK(leg3, global_x, y_back, 0); moveLeg(leg3);
+    computeIK(leg6, global_x, y_back, 0); moveLeg(leg6);
+
+    Serial.print("PITCH Target: ");
+    Serial.print(target_pitch);
+    Serial.print("  Pitch: ");
+    Serial.print(pitchDeg_smooth);
+    Serial.print("  Error: ");
+    Serial.print(pitch_error);
+    Serial.print("  Correction: ");
+    Serial.println(pitch_correction_smooth);
+  }
+}
+
+
 void Gaits::down_up(){
 
   // Sitting down

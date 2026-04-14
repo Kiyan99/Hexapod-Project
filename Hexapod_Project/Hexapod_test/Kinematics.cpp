@@ -7,7 +7,7 @@ const int max_len = link_1 + link_2;
 const float d = 38.5;
 
 // Global gait values
-int global_x = 130;
+int global_x = 120;
 int global_y = -130;
 int arc = 30;
 

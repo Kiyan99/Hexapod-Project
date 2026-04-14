@@ -141,9 +141,18 @@ char currentcommand = '\0';
 
 char last_command = '0';
 char command = '0';
+float roll_voltage = 0.0f;
+float pitch_voltage = 0.0f;
 
 unsigned long t_start = 0;
 const unsigned long timeout = 250;
+
+
+struct Packet {
+  char command;
+  float roll_voltage;
+  float pitch_voltage;
+};
 
 
 void setup() {
@@ -171,9 +180,14 @@ void setup() {
 
 
   // Initialize all legs to neutral position
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 3; i++) {
     computeIK(*allLegs[i], global_x, global_y, 0);
     moveLeg(*allLegs[i]);
+  }
+  delay(1000);
+  for (int n = 3; n < 6; n++) {
+    computeIK(*allLegs[n], global_x, global_y, 0);
+    moveLeg(*allLegs[n]);
   }
 
   delay(4000);
@@ -195,8 +209,6 @@ void setup() {
   lastMicros = micros();
 
 }
-
-
 
 
 
@@ -234,32 +246,34 @@ void loop() {
   float rollDeg  = roll  * 180.0f / PI;
   float pitchDeg = pitch * 180.0f / PI;
 
-  Serial.print("Roll: ");
-  Serial.print(rollDeg, 2);
-  Serial.print("  Pitch: ");
-  Serial.println(pitchDeg, 2);
-
-  radio.stopListening();
-  radio.write(&rollDeg, sizeof(rollDeg));
-  radio.startListening();
+  // Serial.print("Roll: ");
+  // Serial.print(rollDeg, 2);
+  // Serial.print("  Pitch: ");
+  // Serial.println(pitchDeg, 2);
 
 
 
+  Packet data;
   if (radio.available()) {
-      radio.read(&command, sizeof(command));
-      Serial.print("command: ");
+      radio.read(&data, sizeof(data));
+
+      command = data.command;
+      roll_voltage = data.roll_voltage;
+      pitch_voltage = data.pitch_voltage;
+
+
+      Serial.print("Command: ");
       Serial.println(command);
-      t_start = millis();
+     
   }
 
-  if ( millis() - t_start > timeout){
-    command = '0';
-  }
 
-  if(last_command != command){
+
+  if(command == '0'){
     gaits.reset_gaits();
     last_command = command;
   }
+
 
 
   // Execute current command continuously
@@ -278,25 +292,7 @@ void loop() {
 
     case 'x': gaits.down_up(); break;
 
-    case 'z':
-      global_y = global_y - 5;
-      global_x = global_x - 5;
-      Serial.print("Increasing Height by 5mm, Y = ");
-      Serial.println(global_y);
-
-      for (int i = 0; i < 6; i++) {
-        computeIK(*allLegs[i], global_x, global_y, 0);
-        moveLeg(*allLegs[i]);
-      }
-      currentcommand = '\0';
-      break;
-
-    case 'v': // neutralize all legs
-      for (int i = 0; i < 6; i++) {
-        computeIK(*allLegs[i], global_x, global_y, 0);
-        moveLeg(*allLegs[i]);
-      }
-      break;
+    case 'z': gaits.tilt_control(roll_voltage, pitch_voltage, rollDeg, pitchDeg, global_x, global_y); break;
 
   } 
 

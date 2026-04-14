@@ -21,6 +21,15 @@ RF24 radio(16, 17); // CE & CSN
 byte address[][6] = {"Node1", "Node2"};
 // End
 
+bool bodyTiltMode = false;
+bool lastSw2State = HIGH;
+bool sendExitOnce = false;
+
+struct Packet {
+  char command;
+  float roll_voltage;
+  float pitch_voltage;
+};
 
 void setup() {
   // put your setup code here, to run once:
@@ -42,74 +51,84 @@ void loop() {
   
   radio.startListening(); // RX mode
 
-  int x1_raw = analogRead(J1_x);
-  int y1_raw = analogRead(J1_y);
+  float x1_raw = analogRead(J1_x);
+  float y1_raw = analogRead(J1_y);
   int sw1 = digitalRead(J1_sw);
 
-  int x2_raw = analogRead(J2_x);
-  int y2_raw = analogRead(J2_y);
+  float x2_raw = analogRead(J2_x);
+  float y2_raw = analogRead(J2_y);
   int sw2 = digitalRead(J2_sw);
 
-  int x1_voltage = (x1_raw / ADC_MAX) * ADC_REF;
-  int y1_voltage = (y1_raw / ADC_MAX) * ADC_REF;
+  float x1_voltage = (x1_raw / ADC_MAX) * ADC_REF;
+  float y1_voltage = (y1_raw / ADC_MAX) * ADC_REF;
 
-  int x2_voltage = (x2_raw / ADC_MAX) * ADC_REF;
-  int y2_voltage = (y2_raw / ADC_MAX) * ADC_REF;
+  float x2_voltage = (x2_raw / ADC_MAX) * ADC_REF;
+  float y2_voltage = (y2_raw / ADC_MAX) * ADC_REF;
 
 
 
-  if (radio.available()) {
-    float roll = 0.0f;
-    radio.read(&roll, sizeof(roll));
-    Serial.print("Roll: ");
-    Serial.println(roll);
-  }
+  // if (radio.available()) {
+  //   float roll = 0.0f;
+  //   radio.read(&roll, sizeof(roll));
+  //   Serial.print("Roll: ");
+  //   Serial.println(roll);
+  // }
 
-  
-  if(x1_voltage == 0){
-    radio.stopListening(); // TX mode
-    char command = 's';
-    radio.write(&command, sizeof(command));
-    Serial.println("Revers command");
-  }
-  else if (x1_voltage == 3) {
-    radio.stopListening(); // TX mode
-    char command = 'w';
-    radio.write(&command, sizeof(command));
-    Serial.println("forward command");
-  }
-  else if (y1_voltage == 0) {
-    radio.stopListening(); // TX mode
-    char command = 'a';
-    radio.write(&command, sizeof(command));
-    Serial.println("Left command");
-  }
-  else if (y1_voltage == 3) {
-    radio.stopListening(); // TX mode
-    char command = 'd';
-    radio.write(&command, sizeof(command));
-    Serial.println("Right command");
-  }
-  else if (y2_voltage == 0){
-    radio.stopListening(); // TX mode
-    char command = 'q';
-    radio.write(&command, sizeof(command));
-    Serial.println("Crab walk left");
-  }
-  else if (y2_voltage == 3){
-    radio.stopListening(); // TX mode
-    char command = 'e';
-    radio.write(&command, sizeof(command));
-    Serial.println("Crab walk right");    
+
+  Packet data;
+  data.command = '0';
+  data.roll_voltage = y2_voltage;
+  data.pitch_voltage = x2_voltage;
+
+  // Toggle tilt mode only once per press
+  if (lastSw2State == HIGH && sw2 == LOW) {
+    bodyTiltMode = !bodyTiltMode;
+    delay(200); // simple debounce
   }
 
-  else if (sw1 == 0){
-    radio.stopListening(); // TX mode
-    char command = 'x';
-    radio.write(&command, sizeof(command));
-    Serial.println("Sit down");       
+  lastSw2State = sw2;
+
+  if (bodyTiltMode == true) {
+    // In tilt mode, only send tilt packets
+    data.command = 'z';
+    data.roll_voltage = y2_voltage; Serial.print("J2_Y voltage: "); Serial.print(y2_voltage);
+    data.pitch_voltage = x2_voltage; Serial.print("   J2_X Pitch votage: "); Serial.println(x2_voltage);
+
   }
-  
+  else { 
+      // Normal mode
+      if (x1_voltage == 0.0f) {
+        data.command = 's';
+        Serial.println("Reverse command");
+      }
+      else if (x1_voltage > 3.0f) {
+        data.command = 'w';
+        Serial.println("Forward command");
+      }
+      else if (y1_voltage == 0.0f) {
+        data.command = 'a';
+        Serial.println("Left command");
+      }
+      else if (y1_voltage > 3.0f) {
+        data.command = 'd';
+        Serial.println("Right command");
+      }
+      else if (y2_voltage == 0.0f) {
+        data.command = 'q';
+        Serial.println("Crab walk left");
+      }
+      else if (y2_voltage > 3.0f) {
+        data.command = 'e';
+        Serial.println("Crab walk right");
+      }
+      else if (sw1 == 0) {
+        data.command = 'x';
+        Serial.println("Sit down");
+      }
+  }
+
+  radio.stopListening();
+  radio.write(&data, sizeof(data));
   delay(150);
 
 }
