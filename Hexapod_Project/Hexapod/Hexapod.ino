@@ -1,87 +1,182 @@
 #include <Wire.h>
 #include <Adafruit_PWMServoDriver.h>
-
-// Constants
-#define SERVO_MIN 150
-#define SERVO_MAX 600
-
-const float link_1 = 70.0;  // mm
-const float link_2 = 137.0; // mm
-
-Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x40); // First board
-Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x41); // Second board
-
-int global_X = 100;  // This replaces all the individual global_X values
-int global_y = -120; // replace all the y values
-int arc = 40; // this is the value that determines the height of the stepping arc
+#include <SPI.h>
+#include <RF24.h>
+#include "Kinematics.h"
+#include "Gaits.h"
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+#include <math.h>
 
 
-// Leg structure definition
-struct Leg {
-  int servo0; // Shoulder yaw (theta1)
-  int servo1; // Shoulder pitch (theta2)
-  int servo2; // Elbow (theta3)
+Adafruit_MPU6050 mpu;
 
-  Adafruit_PWMServoDriver* pwm; // Pointer to the correct board
+// Madgwick filter state
+float q0 = 1.0f;
+float q1 = 0.0f;
+float q2 = 0.0f;
+float q3 = 0.0f;
 
-  int x, y, z;  // x, y, z axis values
-  double c, L;  // c, L values as double to store more accurate number
+// Filter gain
+float beta = 0.08f;
+// Timing
+unsigned long lastMicros = 0;
 
-  int theta1_deg, theta2_deg, theta3_deg;  // theta angles in degrees
-  int theta1_pwm, theta2_pwm, theta3_pwm;  // theta angles in PWM
+
+// ===============================
+// 6-axis Madgwick update
+// gx, gy, gz in rad/s
+// ax, ay, az in any accel unit
+// dt in seconds
+// ===============================
+void MadgwickUpdateIMU(float gx, float gy, float gz, float ax, float ay, float az, float dt)
+{
+  float norm;
+  float f1, f2, f3;
+  float s0, s1, s2, s3;
+  float qDot0, qDot1, qDot2, qDot3;
+
+  // --------------------------------
+  // Step 1: Normalize accelerometer
+  // --------------------------------
+  norm = sqrt(ax * ax + ay * ay + az * az);
+  if (norm <= 0.0f) return;
+
+  ax /= norm;
+  ay /= norm;
+  az /= norm;
+
+  // --------------------------------
+  // Step 2: Build error function
+  // predicted gravity - measured gravity
+  // --------------------------------
+  f1 = 2.0f * (q1 * q3 - q0 * q2) - ax;
+  f2 = 2.0f * (q0 * q1 + q2 * q3) - ay;
+  f3 = 1.0f - 2.0f * (q1 * q1 + q2 * q2) - az;
+
+  // --------------------------------
+  // Step 3: Gradient descent step
+  // s = J^T * f
+  // --------------------------------
+  s0 = -2.0f * q2 * f1 + 2.0f * q1 * f2;
+  s1 =  2.0f * q3 * f1 + 2.0f * q0 * f2 - 4.0f * q1 * f3;
+  s2 = -2.0f * q0 * f1 + 2.0f * q3 * f2 - 4.0f * q2 * f3;
+  s3 =  2.0f * q1 * f1 + 2.0f * q2 * f2;
+
+  // --------------------------------
+  // Step 4: Normalize correction step
+  // --------------------------------
+  norm = sqrt(s0 * s0 + s1 * s1 + s2 * s2 + s3 * s3);
+  if (norm > 0.0f) {
+    s0 /= norm;
+    s1 /= norm;
+    s2 /= norm;
+    s3 /= norm;
+  }
+
+  // --------------------------------
+  // Step 5: Quaternion derivative from gyro
+  // qDot = 0.5 * q ⊗ omega
+  // --------------------------------
+  qDot0 = 0.5f * (-q1 * gx - q2 * gy - q3 * gz);
+  qDot1 = 0.5f * ( q0 * gx + q2 * gz - q3 * gy);
+  qDot2 = 0.5f * ( q0 * gy - q1 * gz + q3 * gx);
+  qDot3 = 0.5f * ( q0 * gz + q1 * gy - q2 * gx);
+
+  // --------------------------------
+  // Step 6: Apply feedback correction
+  // --------------------------------
+  qDot0 -= beta * s0;
+  qDot1 -= beta * s1;
+  qDot2 -= beta * s2;
+  qDot3 -= beta * s3;
+
+  // --------------------------------
+  // Step 7: Integrate quaternion
+  // --------------------------------
+  q0 += qDot0 * dt;
+  q1 += qDot1 * dt;
+  q2 += qDot2 * dt;
+  q3 += qDot3 * dt;
+
+  // --------------------------------
+  // Step 8: Normalize quaternion
+  // --------------------------------
+  norm = sqrt(q0 * q0 + q1 * q1 + q2 * q2 + q3 * q3);
+  if (norm <= 0.0f) return;
+
+  q0 /= norm;
+  q1 /= norm;
+  q2 /= norm;
+  q3 /= norm;
+}
+
+// ===============================
+// Quaternion to Euler angles
+// roll/pitch/yaw in radians
+// ===============================
+void getEulerRad(float &roll, float &pitch, float &yaw)
+{
+  roll = atan2(2.0f * (q0 * q1 + q2 * q3),
+               1.0f - 2.0f * (q1 * q1 + q2 * q2));
+
+  float pitchArg = 2.0f * (q0 * q2 - q3 * q1);
+  if (pitchArg > 1.0f) pitchArg = 1.0f;
+  if (pitchArg < -1.0f) pitchArg = -1.0f;
+  pitch = asin(pitchArg);
+
+  yaw = atan2(2.0f * (q0 * q3 + q1 * q2),
+              1.0f - 2.0f * (q2 * q2 + q3 * q3));
+}
+
+
+
+Gaits gaits;
+
+RF24 radio(16, 17); // CE & CSN
+byte address[][6] = {"Node1", "Node2"};
+
+// Global char variable that saves the last key entered in the Serial Monitor
+char currentcommand = '\0';
+
+char last_command = '0';
+char command = '0';
+float roll_voltage = 0.0f;
+float pitch_voltage = 0.0f;
+
+
+unsigned long lastSendTime = 0;
+unsigned long lastCommandTime = 0;
+
+const unsigned long sendInterval = 100;     // send IMU every 20 ms
+const unsigned long commandTimeout = 200;  // if no command for 100 ms, reset
+
+
+float rollDeg = 0.0f;
+float pitchDeg = 0.0f;
+
+
+struct Packet_in {
+  char command;
+  float roll_voltage;
+  float pitch_voltage;
 };
 
-// Define four legs and assign their PWM channels
-Leg leg1 = {12, 13, 14, &pwm2};  // front left
-Leg leg2 = {4, 5, 6, &pwm2}; // right middle
-Leg leg3 = {0, 1, 2, &pwm1}; // rear left
-Leg leg4 = {8, 9, 10, &pwm2}; // front right
-Leg leg5 = {0, 1, 2, &pwm2}; // left middle
-Leg leg6 = {8, 9, 10, &pwm1}; // rear right
+struct Packet_out {
+  float roll_out;
+  float pitch_out;
+};
 
-// Storing all legs in one array
-Leg* allLegs[6] = { &leg1, &leg2, &leg3, &leg4, &leg5, &leg6 };
-
-// Inverse Kinematics for one leg
-void computeIK(Leg &leg, int x, int y, int z) {
-  leg.x = x;
-  leg.y = y;
-  leg.z = z;
-
-  leg.L = sqrt(x * x + z * z);
-  leg.c = sqrt(leg.L * leg.L + y * y);
-  
-  // Calculating theta angles in radians
-  double theta1_rad = atan2(x, z);
-  double theta2_rad = acos((pow(link_1, 2) + pow(leg.c, 2) - pow(link_2, 2)) / (2 * link_1 * leg.c)) + atan2(y, leg.L);
-  double theta3_rad = acos((pow(link_1, 2) + pow(link_2, 2) - pow(leg.c, 2)) / (2 * link_1 * link_2));
-
-  // Converting theta angles to degrees
-  leg.theta1_deg = theta1_rad * (180.0 / M_PI);
-  leg.theta2_deg = theta2_rad * (180.0 / M_PI);
-  leg.theta3_deg = 180 - (theta3_rad * (180.0 / M_PI));
-}
-
-// Move servos for one leg
-void moveLeg(Leg &leg) {
-  // Maping theta angles from degrees to PWM
-  leg.theta1_pwm = map(leg.theta1_deg, 0, 180, SERVO_MIN, SERVO_MAX);
-  leg.theta2_pwm = map(leg.theta2_deg, 0, 180, SERVO_MIN, SERVO_MAX);
-  leg.theta3_pwm = map(leg.theta3_deg, 0, 180, SERVO_MIN, SERVO_MAX);
-  
-  // Sending PWM signals to each baord and legs 
-  leg.pwm->setPWM(leg.servo0, 0, leg.theta1_pwm);
-  delay(5);
-  leg.pwm->setPWM(leg.servo1, 0, leg.theta2_pwm);
-  delay(5);
-  leg.pwm->setPWM(leg.servo2, 0, leg.theta3_pwm);
-  delay(5);
-
-}
 
 void setup() {
   // initialise boards and serial monitor
-  Serial.begin(9600);
+  Serial.begin(115200);
+    while (!Serial) {
+    ; // Wait for serial connection
+  }
+  Serial.println("ESP32 ready. Type a key and press Enter:");
+
+  // Initializes the two PWM boards (servo drivers) and set them to 50Hz.
   pwm1.begin();
   pwm1.setPWMFreq(50);
   delay(10);
@@ -89,94 +184,149 @@ void setup() {
   pwm2.setPWMFreq(50);
   delay(10);
 
+  // NRF24
+  radio.begin();
+  radio.setPALevel(RF24_PA_MIN);
+  radio.openWritingPipe(address[0]);   // send IMU to controller
+  radio.openReadingPipe(1, address[1]); // receive command from controller
+  radio.startListening(); // RX mode
+
 
   // Initialize all legs to neutral position
-  for (int i = 0; i < 6; i++) {
-    computeIK(*allLegs[i], global_X, global_y, 0);
+  for (int i = 0; i < 3; i++) {
+    computeIK(*allLegs[i], global_x, global_y, 0);
     moveLeg(*allLegs[i]);
+  }
+  delay(1000);
+  for (int n = 3; n < 6; n++) {
+    computeIK(*allLegs[n], global_x, global_y, 0);
+    moveLeg(*allLegs[n]);
   }
 
   delay(4000);
+
+
+  // MPU6050
+  if (!mpu.begin()) {
+    Serial.println("Failed to find MPU6050");
+    while (1) {
+      delay(10);
+    }
+  }
+
+  
+  mpu.setAccelerometerRange(MPU6050_RANGE_2_G);
+  mpu.setGyroRange(MPU6050_RANGE_250_DEG);
+  mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+  Serial.println("MPU6050 ready");
+  lastMicros = micros();
+
 }
+
+
 
 void loop() {
 
-  // for-loop will run 10 timmes
-  for (float t = 0; t <= 1.0; t += 0.1) {
-    
-    // Moving forward
-    int z = (1 - t) * -30 + t * 30;              // Forward swing
-    int y = global_y + 30 * sin(M_PI * t);           // Lift arc
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+
+  // Adafruit library gives:
+  // accel in m/s^2
+  // gyro in rad/s
+
+  float ax = a.acceleration.x;
+  float ay = a.acceleration.y;
+  float az = a.acceleration.z;
+  
+
+  float gx = g.gyro.x;
+  float gy = g.gyro.y;
+  float gz = g.gyro.z;
+
+  unsigned long now = micros();
+  float dt = (now - lastMicros) / 1000000.0f;
+  lastMicros = now;
+
+  // Small protection against weird dt spikes
+  if (dt <= 0.0f || dt > 0.1f) {
+    return;
+  }
+
+  MadgwickUpdateIMU(gx, gy, gz, ax, ay, az, dt);
+
+  float roll, pitch, yaw;
+  getEulerRad(roll, pitch, yaw);
+
+  float rollDeg  = roll  * 180.0f / PI;
+  float pitchDeg = pitch * 180.0f / PI;
+
+  // Serial.print("Roll: ");  Serial.print(rollDeg);
+  // Serial.print("   Roll: ");  Serial.println(pitchDeg);
 
 
-    // Front legs
-    // Pulling and pushing values used by front and read legs
-    int z_push = (1 - t) * 0 + t * 60;
-    int z_pull = (1 - t) * 60;  
-    int x_push = (1 - t) * 50 + t * 100;
-    int x_pull = (1 - t) * 100 + t * 50;  
-    computeIK(leg1, x_push, y, z_push);
-    computeIK(leg4, x_pull, global_y, -z_pull);
-    moveLeg(leg1);
-    moveLeg(leg4);
+  unsigned long TX_timer = millis();
 
-    // Middle legs
-    // Pulling back for middle legs
-    int z_mid_pull = (1 - t) * 30 + t * -30;
-    computeIK(leg2, global_X, y, -z);
-    computeIK(leg5, global_X, global_y, z_mid_pull);  
-    moveLeg(leg2); 
-    moveLeg(leg5);     
+  if(TX_timer - lastSendTime >= sendInterval){
+    lastSendTime = TX_timer;
 
+    Packet_out imu_data;
+    imu_data.roll_out = rollDeg;
+    imu_data.pitch_out = pitchDeg;
 
-    // Rear legs    
-    computeIK(leg3, x_pull, y, -z_pull);
-    computeIK(leg6, x_push, global_y, z_push);
-    moveLeg(leg3);
-    moveLeg(leg6);    
-
-
+    radio.stopListening();
+    radio.write(&imu_data, sizeof(imu_data));
+    radio.startListening();
   }
 
 
+  Packet_in data;
+  if (radio.available()) {
+      radio.read(&data, sizeof(data));
 
-  for (float t = 0; t <= 1.0; t += 0.1) {
-    
-    // Moving forward
-    int z = (1 - t) * -30 + t * 30;              // Forward swing
-    int y = global_y + 30 * sin(M_PI * t);           // Lift arc
-
-
-    //front Legs
-    int z_push = (1 - t) * 0 + t * 60;
-    int z_pull = (1 - t) * 60;  
-    int x_push = (1 - t) * 50 + t * 100;
-    int x_pull = (1 - t) * 100 + t * 50;  
-    computeIK(leg4, x_push, y, -z_push);
-    computeIK(leg1, x_pull, global_y, z_pull);
-    moveLeg(leg4);
-    moveLeg(leg1);
+      command = data.command;
+      roll_voltage = data.roll_voltage;
+      pitch_voltage = data.pitch_voltage;
+      lastCommandTime = millis();
 
 
-
-    // Midlle Legs
-    // Pulling back
-    int z_mid_pull = (1 - t) * 30 + t * -30;
-    computeIK(leg5, global_X, y, z);
-    computeIK(leg2, global_X, global_y, -z_mid_pull);
-    moveLeg(leg5);
-    moveLeg(leg2);
-
-
-
-    // Rear legs
-    computeIK(leg6, x_pull, y, z_pull);
-    computeIK(leg3, x_push, global_y, -z_push);
-    moveLeg(leg6);
-    moveLeg(leg3);
-
+      Serial.print("Command: ");
+      Serial.println(command);
+     
   }
 
+
+  unsigned long command_timer = millis();
+  if (command_timer - lastCommandTime >= commandTimeout) {
+    command = '0';
+  }
+
+  // reset only once when entering idle state
+  if (command == '0' && last_command != '0') {
+    gaits.reset_gaits();
+  }
+
+
+  // Execute current command continuously
+  switch (command) {
+    case 'w': gaits.tripod_forward();break;
+
+    case 's': gaits.tripod_revers();break;
+
+    case 'a': gaits.turn_left();break;
+    
+    case 'd': gaits.turn_right();break;
+
+    case 'q': gaits.crab_walk_left();break;
+
+    case 'e': gaits.crab_walk_right();break;
+
+    case 'x': gaits.down_up(); break;
+
+    case 'z': gaits.tilt_control(roll_voltage, pitch_voltage, rollDeg, pitchDeg, global_x, global_y); break;
+    
+  } 
+
+  last_command = command;
 
 
 }

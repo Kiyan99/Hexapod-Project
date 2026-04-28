@@ -8,7 +8,6 @@ class Gaits{
   public:
     Gaits();
 
-    void sit_down();
     void down_up();
     void tripod_forward();
     void tripod_revers();
@@ -33,10 +32,6 @@ class Gaits{
     float pitchDeg_smooth = 0.0f;
     float pitch_correction_smooth = 0.0f;
     
-    int tran_x[6];
-    int tran_y[6];
-    int tran_z[6];
-
 };
 
 #endif

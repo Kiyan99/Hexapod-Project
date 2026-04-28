@@ -11,11 +11,6 @@ int global_x = 120;
 int global_y = -130;
 int arc = 30;
 
-// y value for transition
-int tran_y = 0;
-int tran_x = 0;
-int tran_z = 0;
-
 // PWM boards
 Adafruit_PWMServoDriver pwm1 = Adafruit_PWMServoDriver(0x40);
 Adafruit_PWMServoDriver pwm2 = Adafruit_PWMServoDriver(0x41);
@@ -67,3 +62,7 @@ void moveLeg(Leg &leg) {
   leg.pwm->setPWM(leg.servo2, 0, leg.theta3_pwm);
   delay(5);
 }
+
+
+
+

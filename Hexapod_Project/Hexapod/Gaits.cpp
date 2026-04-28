@@ -59,14 +59,14 @@ void Gaits::tilt_control(float roll_voltage, float pitch_voltage, float rollDeg,
     computeIK(leg4, global_x, y_right, 0); moveLeg(leg4);
     computeIK(leg6, global_x, y_right, 0); moveLeg(leg6);
 
-    Serial.print("ROLL Target: ");
-    Serial.print(target_roll);
-    Serial.print("  Roll: ");
-    Serial.print(rollDeg_smooth);
-    Serial.print("  Error: ");
-    Serial.print(roll_error);
-    Serial.print("  Correction: ");
-    Serial.println(roll_correction_smooth);
+    // Serial.print("ROLL Target: ");
+    // Serial.print(target_roll);
+    // Serial.print("  Roll: ");
+    // Serial.print(rollDeg_smooth);
+    // Serial.print("  Error: ");
+    // Serial.print(roll_error);
+    // Serial.print("  Correction: ");
+    // Serial.println(roll_correction_smooth);
   }
 
   // -------------------------
@@ -81,7 +81,7 @@ void Gaits::tilt_control(float roll_voltage, float pitch_voltage, float rollDeg,
       pitch_error = 0.0f;
     }
 
-    float kp_pitch = 1.5f;
+    float kp_pitch = 0.7f;
     float pitch_correction_raw = kp_pitch * pitch_error;
 
     float alpha_c = 0.5f;
@@ -98,14 +98,14 @@ void Gaits::tilt_control(float roll_voltage, float pitch_voltage, float rollDeg,
     computeIK(leg3, global_x, y_back, 0); moveLeg(leg3);
     computeIK(leg6, global_x, y_back, 0); moveLeg(leg6);
 
-    Serial.print("PITCH Target: ");
-    Serial.print(target_pitch);
-    Serial.print("  Pitch: ");
-    Serial.print(pitchDeg_smooth);
-    Serial.print("  Error: ");
-    Serial.print(pitch_error);
-    Serial.print("  Correction: ");
-    Serial.println(pitch_correction_smooth);
+    // Serial.print("PITCH Target: ");
+    // Serial.print(target_pitch);
+    // Serial.print("  Pitch: ");
+    // Serial.print(pitchDeg_smooth);
+    // Serial.print("  Error: ");
+    // Serial.print(pitch_error);
+    // Serial.print("  Correction: ");
+    // Serial.println(pitch_correction_smooth);
   }
 }
 
@@ -216,19 +216,18 @@ void Gaits::tripod_forward() {
   if (standing == true){
     // Phase 1
     if (phase == 1){
+
       // Moving forward
       int y = global_y + arc * sin(M_PI * t);       // Lift arc
-
-
-      // Front legs
       // Pulling and pushing values used by front and read legs
       int z_push = (1 - t) * 0 + t * 30;
       int z_pull = (1 - t) * 30;  
       int x_push = (1 - t) * 110 + t * global_x;
-      int x_pull = (1 - t) * global_x + t * 110;  
+      int x_pull = (1 - t) * global_x + t * 110;
+
+      // Front legs
       computeIK(leg1, x_push, y, z_push);
       moveLeg(leg1);
-
       computeIK(leg4, x_pull, global_y, -z_pull);
       moveLeg(leg4);
 
@@ -238,15 +237,12 @@ void Gaits::tripod_forward() {
       int z_mid_pull = (1 - t) * 15 + t * -15;
       computeIK(leg2, global_x, y, -z);
       moveLeg(leg2); 
-
       computeIK(leg5, global_x, global_y, -z);  
       moveLeg(leg5);     
-
 
       // Rear legs    
       computeIK(leg3, x_pull, y, -z_pull);
       moveLeg(leg3);
-
       computeIK(leg6, x_push, global_y, z_push);
       moveLeg(leg6);    
 
