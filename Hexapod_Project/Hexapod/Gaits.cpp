@@ -33,18 +33,18 @@ void Gaits::tilt_control(float roll_voltage, float pitch_voltage, float rollDeg,
   // -------------------------
   // ROLL ONLY
   // -------------------------
-  if (target_roll != 0.0f) {
+  if (target_roll < -1.0f || target_roll > 1.0f) {
     float roll_error = target_roll - rollDeg_smooth;
 
     if (fabs(roll_error) < 1.0f) {
       roll_error = 0.0f;
     }
 
-    float kp_roll = 7.0f;
+    float kp_roll = 6.0f;
     float roll_correction_raw = kp_roll * roll_error;
 
-    float alpha_c = 0.3f;
-    roll_correction_smooth += alpha_c * (roll_correction_raw - roll_correction_smooth);
+    float alpha_c_r = 0.3f;
+    roll_correction_smooth += alpha_c_r * (roll_correction_raw - roll_correction_smooth);
 
     float y_left  = global_y + roll_correction_smooth;
     float y_right = global_y - roll_correction_smooth;
@@ -74,18 +74,18 @@ void Gaits::tilt_control(float roll_voltage, float pitch_voltage, float rollDeg,
   // front legs and back legs only
   // middle legs unchanged
   // -------------------------
-  else if (target_pitch != 0.0f) {
+  else if (target_pitch < -1.0f || target_pitch > 1.0f) {
     float pitch_error = target_pitch - pitchDeg_smooth;
 
     if (fabs(pitch_error) < 1.0f) {
       pitch_error = 0.0f;
     }
 
-    float kp_pitch = 0.7f;
+    float kp_pitch = 1.0f;
     float pitch_correction_raw = kp_pitch * pitch_error;
 
-    float alpha_c = 0.5f;
-    pitch_correction_smooth += alpha_c * (pitch_correction_raw - pitch_correction_smooth);
+    float alpha_c_p = 0.3f;
+    pitch_correction_smooth += alpha_c_p * (pitch_correction_raw - pitch_correction_smooth);
 
     float y_front = global_y + pitch_correction_smooth;
     float y_back  = global_y - pitch_correction_smooth;
